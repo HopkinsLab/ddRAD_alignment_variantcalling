@@ -55,7 +55,7 @@ module load bcftools
 #go to directory for fastq files
 cd /n/holyscratch01/hopkins_lab/Chaturvedi/ddrad_sam_april2021/trimmomatic/trim_paired/
 #path to the genome assembly, note you only need to specify the prefix
-bwa_db=/n/holyscratch01/hopkins_lab/Chaturvedi/ddrad_sam_april2021/genome_assembly/curated.with.repeats
+bwa_db=/n/holyscratch01/hopkins_lab/Chaturvedi/ddrad_sam_april2021/genome_assembly/curated.with.repeats.fasta
 #path to write the output bam files
 mkdir /n/holyscratch01/hopkins_lab/Chaturvedi/ddrad_sam_april2021/alignment_varcalling/aligned_bamfiles
 out_path=/n/holyscratch01/hopkins_lab/Chaturvedi/ddrad_sam_april2021/alignment_varcalling/aligned_bamfiles
