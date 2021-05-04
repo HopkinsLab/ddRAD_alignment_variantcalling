@@ -28,5 +28,6 @@ out_path=/n/holyscratch01/hopkins_lab/Chaturvedi/ddrad_sam_april2021/alignment_v
 for i in $(ls *.fastq | sed -r 's/_R[12]_paired.fastq//' | uniq)
 do
         bwa mem -t 12 -k 15 -r 1.3 -T 20 $bwa_db  ${i}_R1_paired.fastq ${i}_R2_paired.fastq | samtools view -b | samtools sort --threads 10 > ${i}.bam
-        mv ${i}.bam $out_path
+        samtools index ${i}.bam
+	mv ${i}*bam* $out_path
 done
