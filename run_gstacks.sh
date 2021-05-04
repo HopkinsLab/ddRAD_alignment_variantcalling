@@ -36,4 +36,4 @@ gstacks -I $bam_dir -M $bam_dir/popmap_geography.txt --rm-pcr-duplicates -O $sta
 # Run populations. Calculate Hardy-Weinberg deviation, population statistics, f-statistics and 
 # smooth the statistics across the genome. Export several output files.
 
-populations -P $stacks -M $src/popmaps/popmap -r 0.65 --vcf --genepop --fstats --smooth --hwe -t 8
+populations -P $stacks -M $bam_dir/popmap_geography.txt -r 0.65 --vcf --genepop --fstats --smooth --hwe -t 8
