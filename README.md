@@ -55,18 +55,80 @@ module load bcftools
 #go to directory for fastq files
 cd /n/holyscratch01/hopkins_lab/Chaturvedi/ddrad_sam_april2021/trimmomatic/trim_paired/
 #path to the genome assembly, note you only need to specify the prefix
-bwa_db=/n/holyscratch01/hopkins_lab/Chaturvedi/ddrad_sam_april2021/genome_assembly/curated.with.repeats.fasta
+bwa_db=/n/holyscratch01/hopkins_lab/Chaturvedi/ddrad_sam_april2021/genome_assembly/curated.with.repeats.fasta 
 #path to write the output bam files
 mkdir /n/holyscratch01/hopkins_lab/Chaturvedi/ddrad_sam_april2021/alignment_varcalling/aligned_bamfiles
 out_path=/n/holyscratch01/hopkins_lab/Chaturvedi/ddrad_sam_april2021/alignment_varcalling/aligned_bamfiles
 
-# Align paired-end data with BWA, convert to BAM and SORT.
+# Align paired-end data with BWA, convert to BAM and SORT, INDEX.
 for i in $(ls *.fastq | sed -r 's/_R[12]_paired.fastq//' | uniq)
 do 
 	bwa mem -t 12 -k 15 -r 1.3 -T 20 $bwa_db  ${i}_R1_paired.fastq ${i}_R2_paired.fastq | samtools view -b | samtools sort --threads 10 > ${i}.bam
-	mv ${i}.bam $out_path
+	samtools index ${i}.bam
+	mv ${i}*bam* $out_path
 done
 ```
+
+```bash
+#!/bin/bash
+#SBATCH -p shared                                               # Partition to submit to
+#SBATCH -n 16                                           # Number of cores
+#SBATCH -N 1                                            # Ensure that all cores are on one machine
+#SBATCH -t 5-0:00                                       # Runtime in days-hours:minutes
+#SBATCH --mem 150000                                    # Memory in MB
+#SBATCH -J bwamem                                  # job name
+#SBATCH -o bwamem_%A.out                   # File to which standard out will be written
+#SBATCH -e bwamem_%A.err                   # File to which standard err will be written
+#SBATCH --mail-type=ALL                                 # Type of email notification- BEGIN,END,FAIL,ALL
+#SBATCH --mail-user=schaturvedi@fas.harvard.edu     # Email to which notifications will be sent
+
+# load modules
+module load bwa
+module load samtools
+module load bcftools
+
+#specify paths
+#go to directory for fastq files
+cd /n/holyscratch01/hopkins_lab/Chaturvedi/ddrad_sam_april2021/alignment_varcalling/aligned_bamfiles/
+
+for i in *.bam; do samtools idxstats $i | awk '{s+=$3} END {print s}'; done
+
+#the slurm *out file is where all the numbers will be written
+```
+Getting summary statistics in R:
+
+```bash
+cd /n/holyscratch01/hopkins_lab/Chaturvedi/ddrad_sam_april2021/alignment_varcalling/aligned_bamfiles
+
+# 1. Create list of samples ids for the aligned bams, we just need the prefix
+ls *.bam | sed -r 's/.bam//' | uniq > sampleids.txt
+
+# 2. Get the aligned reads from the output of previous file
+mv slurm.out > aligned_reads.txt
+# 3. Combine the two to create the population map for your samples; note tab separation is required by STACKS
+paste sampleids.txt aligned_reads.txt > ids_aligned_reads.txt
+```
+
+In R:
+
+```R
+trim<-read.table("aligned_bamfiles/ids_aligned_reads.txt", header=F)
+stacks<-read.table("aligned_bamfiles_stacks/ids_aligned_reads_stacks.txt", header=F)
+
+#order the files
+trim_o<-trim[order(trim[,2], decreasing=T),]
+stacks_o<-stacks[order(stacks[,2], decreasing=T),]
+
+#make a barplot
+pdf("reads_align_barplot.pdf", height = 10, width = 13)
+par(mfrow=c(2,1))
+par(mar=c(6,5,4,1))
+barplot(trim_o[,2], names.arg=trim_o[,1], ylab="Number of mapped reads", main="Reads post trimming", cex.lab=1.5,cex.main=2, las=2, cex.names=0.5, cex.axis=0.5)
+par(mar=c(6,5,4,1))
+barplot(stacks_o[,2], names.arg=stacks_o[,1], ylab="Number of mapped reads", main="Reads post process_radtags", cex.lab=1.5, cex.main=2, las=2, cex.names=0.5, cex.axis=0.5)
+dev.off()
+```
+
 
 **STEP 2: Run reference based alignment using STACKS**
 
@@ -76,10 +138,10 @@ First, we will create the population map file for using STACKS for alignment. Th
 cd /n/holyscratch01/hopkins_lab/Chaturvedi/ddrad_sam_april2021/alignment_varcalling/aligned_bamfiles
 
 # 1. Create list of samples ids for the aligned bams, we just need the prefix
-ls *.fastq | sed -r 's/_R[12]_paired.fastq//' | uniq > sampleids.txt
+ls *.bam | sed -r 's/.bam//' | uniq > sampleids.txt
 
 # 2. Create list of populations
-ls *.fastq | sed -r 's/_R[12]_paired.fastq//' | uniq | cut -d"-" -f 1 > populations.txt
+ls *.bam | sed -r 's/.bam//' | uniq | cut -d"-" -f 1 > populations.txt
 
 # 3. Combine the two to create the population map for your samples; note tab separation is required by STACKS
 paste sampleids.txt populations.txt > popmap_geography.txt
@@ -106,22 +168,25 @@ module load gcc/7.1.0-fasrc01 stacks/2.4-fasrc01
 
 #specify file paths and directories
 #specify paths
+
 #path to the genome assembly, note you only need to specify the prefix
 bwa_db=/n/holyscratch01/hopkins_lab/Chaturvedi/ddrad_sam_april2021/genome_assembly/curated.with.repeats
+
 #path to write the output stack files
 mkdir /n/holyscratch01/hopkins_lab/Chaturvedi/ddrad_sam_april2021/alignment_varcalling/stacks
 stacks_out=/n/holyscratch01/hopkins_lab/Chaturvedi/ddrad_sam_april2021/alignment_varcalling/stacks
+
+#path to bamfiles
 bam_dir=/n/holyscratch01/hopkins_lab/Chaturvedi/ddrad_sam_april2021/alignment_varcalling/aligned_bamfiles
 
 
 # Run gstacks to build loci from the aligned paired-end data. We have instructed
 # gstacks to remove any PCR duplicates that it finds.
-#
+
 gstacks -I $bam_dir -M $bam_dir/popmap_geography.txt --rm-pcr-duplicates -O $stacks -t 8
 
-#
 # Run populations. Calculate Hardy-Weinberg deviation, population statistics, f-statistics and 
 # smooth the statistics across the genome. Export several output files.
-#
-populations -P $stacks -M $bam_dir/popmap_geography.txt -r 0.65 --vcf --genepop --fstats --smooth --hwe -t 8
+
+populations -P $stacks -M $src/popmaps/popmap -r 0.65 --vcf --genepop --fstats --smooth --hwe -t 8
 ```
